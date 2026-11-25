@@ -1,0 +1,1328 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIO - Eye Health Platform</title>
+
+    <!-- 1. Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'brand-yellow': '#E3FF00',
+                        'brand-dark': '#121212',
+                        'brand-light-dark': '#1E1E1E',
+                    },
+                    keyframes: {
+                        fadeIn: { '0%': { opacity: 0, transform: 'translateY(10px)' }, '100%': { opacity: 1, transform: 'translateY(0)' } },
+                        popIn: { '0%': { opacity: 0, transform: 'scale(0.95)' }, '100%': { opacity: 1, transform: 'scale(1)' } },
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-out forwards',
+                        'pop-in': 'popIn 0.3s ease-out forwards',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- 2. Lucide Icons via CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- 3. Custom CSS Styles -->
+    <style>
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+        .animate-bounce-custom .dot { animation: bounce 1.4s infinite ease-in-out both; }
+        .dot:nth-child(1) { animation-delay: -0.32s; }
+        .dot:nth-child(2) { animation-delay: -0.16s; }
+        
+        body { padding-top: 68px; background-color: #121212; }
+        nav { position: fixed; top: 0; left: 0; right: 0; width: 100%; z-index: 50; }
+        .loader { border-top-color: #E3FF00; }
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+        .notification-container {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 200;
+        }
+        .notification {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+        .eye-diagram-part {
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            fill: rgba(255, 255, 255, 0.1);
+            stroke: #9ca3af;
+            stroke-width: 1;
+        }
+        .eye-diagram-part:hover, .eye-diagram-part.active {
+            fill: rgba(227, 255, 0, 0.3);
+            stroke: #E3FF00;
+            stroke-width: 2;
+        }
+    </style>
+</head>
+<body class="text-gray-200">
+
+    <div id="app"></div>
+    <div id="modal-container"></div>
+    <div id="notification-container" class="notification-container"></div>
+    
+    <script>
+        // =================================================================
+        // STATE MANAGEMENT
+        // =================================================================
+        let state = {
+            currentPage: 'login',
+            isLoggedIn: false,
+            mobileMenuOpen: false,
+            scanResult: null,
+            isAnalyzing: false,
+            chatHistory: [
+                { role: 'model', parts: [{ text: 'Hello! I am SIO, your AI assistant. How can I help you with your eye health today?' }] }
+            ],
+            isTyping: false,
+            selectedImage: null,
+            usingCamera: false,
+            doctors: [],
+            isLoadingDoctors: false,
+            userProfile: { name: 'Alex Doe', age: '', conditions: '' },
+            symptoms: { redness: false, blurriness: false, pain: false, floaters: false, headaches: false, 'double-vision': false },
+            scanHistory: [],
+            appointments: [],
+            medications: [],
+            isModalOpen: false,
+            modalContent: null,
+            exerciseTimer: null,
+            exerciseSecondsLeft: 20,
+            acuityTestLevel: 0,
+            colorTestPlate: 0,
+            colorTestScore: 0,
+            hoveredEyePart: '',
+        };
+
+        // =================================================================
+        // HTML TEMPLATES
+        // =================================================================
+        
+        const LoginPageHTML = () => `
+            <div class="fixed inset-0 flex items-center justify-center bg-brand-dark p-4">
+                <div class="w-full max-w-md p-8 rounded-lg bg-brand-light-dark border border-gray-800 animate-pop-in">
+                    <div class="text-center mb-8">
+                        <div class="flex justify-center items-center mb-4">
+                            <i data-lucide="eye" class="w-12 h-12 text-brand-yellow mr-2"></i>
+                            <h1 class="text-4xl font-bold text-white">SIO</h1>
+                        </div>
+                        <p class="text-gray-400">Smart Eye Health Platform</p>
+                    </div>
+                    <div class="space-y-6">
+                        <input id="login-email" type="email" placeholder="Email (admin)" class="w-full px-4 py-3 rounded-md border-2 border-gray-700 bg-brand-dark text-white focus:ring-2 focus:ring-brand-yellow focus:border-brand-yellow transition">
+                        <input id="login-password" type="password" placeholder="Password (admin)" class="w-full px-4 py-3 rounded-md border-2 border-gray-700 bg-brand-dark text-white focus:ring-2 focus:ring-brand-yellow focus:border-brand-yellow transition">
+                        <button id="login-btn" class="w-full bg-brand-yellow text-black py-3 rounded-md font-bold text-lg hover:bg-yellow-300 transition-transform transform hover:scale-105">Sign In</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const NavigationHTML = () => `
+            <nav class="bg-brand-light-dark/80 backdrop-blur-lg border-b border-gray-800 px-4 py-4">
+                <div class="flex items-center justify-between max-w-6xl mx-auto">
+                    <div class="flex items-center">
+                        <i data-lucide="eye" class="w-8 h-8 text-brand-yellow mr-2"></i>
+                        <span class="text-2xl font-bold text-white">SIO</span>
+                    </div>
+                    <div class="hidden md:flex items-center space-x-8">
+                        <button class="nav-btn font-medium transition-colors ${state.currentPage === 'dashboard' ? 'text-brand-yellow' : 'text-gray-400 hover:text-white'}" data-page="dashboard">Dashboard</button>
+                        <button class="nav-btn font-medium transition-colors ${state.currentPage === 'scan' ? 'text-brand-yellow' : 'text-gray-400 hover:text-white'}" data-page="scan">Scan</button>
+                        <button class="nav-btn font-medium transition-colors ${state.currentPage === 'chatbot' ? 'text-brand-yellow' : 'text-gray-400 hover:text-white'}" data-page="chatbot">Chatbot</button>
+                        <button class="nav-btn font-medium transition-colors ${state.currentPage === 'doctors' ? 'text-brand-yellow' : 'text-gray-400 hover:text-white'}" data-page="doctors">Doctors</button>
+                        <button class="nav-btn font-medium transition-colors ${state.currentPage === 'symptoms' ? 'text-brand-yellow' : 'text-gray-400 hover:text-white'}" data-page="symptoms">Symptoms</button>
+                        <button class="nav-btn font-medium transition-colors ${state.currentPage === 'learn' ? 'text-brand-yellow' : 'text-gray-400 hover:text-white'}" data-page="learn">Learn</button>
+                    </div>
+                    <button id="mobile-menu-btn" class="md:hidden p-2 text-gray-300">${state.mobileMenuOpen ? '<i data-lucide="x"></i>' : '<i data-lucide="menu"></i>'}</button>
+                </div>
+                ${state.mobileMenuOpen ? `
+                    <div class="md:hidden mt-4 pb-4">
+                        <div class="flex flex-col space-y-4 px-4">
+                           <button class="nav-btn text-left font-medium ${state.currentPage === 'dashboard' ? 'text-brand-yellow' : 'text-gray-300'}" data-page="dashboard">Dashboard</button>
+                           <button class="nav-btn text-left font-medium ${state.currentPage === 'scan' ? 'text-brand-yellow' : 'text-gray-300'}" data-page="scan">Scan</button>
+                           <button class="nav-btn text-left font-medium ${state.currentPage === 'chatbot' ? 'text-brand-yellow' : 'text-gray-300'}" data-page="chatbot">Chatbot</button>
+                           <button class="nav-btn text-left font-medium ${state.currentPage === 'doctors' ? 'text-brand-yellow' : 'text-gray-300'}" data-page="doctors">Doctors</button>
+                           <button class="nav-btn text-left font-medium ${state.currentPage === 'symptoms' ? 'text-brand-yellow' : 'text-gray-300'}" data-page="symptoms">Symptoms</button>
+                           <button class="nav-btn text-left font-medium ${state.currentPage === 'learn' ? 'text-brand-yellow' : 'text-gray-300'}" data-page="learn">Learn</button>
+                        </div>
+                    </div>
+                ` : ''}
+            </nav>
+        `;
+
+        const ScanPageHTML = () => {
+            if (state.scanResult) {
+                return `
+                    <div class="max-w-4xl mx-auto px-4 py-8 animate-fade-in">
+                        <div class="bg-brand-light-dark rounded-lg p-6 md:p-8 border border-gray-800 shadow-lg">
+                            <div class="flex items-center justify-between mb-6">
+                                <h2 class="text-3xl font-bold text-white">Analysis Result</h2>
+                                <button id="new-scan-btn" class="flex items-center px-4 py-2 text-brand-yellow hover:bg-gray-800 rounded-md transition-colors"><i data-lucide="rotate-ccw" class="w-4 h-4 mr-2"></i> New Scan</button>
+                            </div>
+                            <div class="grid md:grid-cols-2 gap-8 items-center">
+                                <img src="${state.selectedImage}" class="w-full rounded-md shadow-md">
+                                <div class="text-center">
+                                    <p class="text-gray-400 text-lg mb-2">Detected Condition:</p>
+                                    <h3 class="text-4xl font-extrabold text-brand-yellow">${state.scanResult.prediction.replace('_', ' ')}</h3>
+                                    
+                                    <!-- MODIFICATION: Display confidence score -->
+                                    <p class="text-gray-300 mt-3">Confidence: <span class="font-bold text-lg">${state.scanResult.confidence}</span></p>
+
+                                    <p class="mt-4 text-gray-300">This is a preliminary analysis. Please consult with a qualified ophthalmologist for a definitive diagnosis and treatment plan.</p>
+                                    <p class="mt-2 text-sm text-gray-500">This result has been saved to your dashboard.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (state.isAnalyzing) {
+                // This part remains the same
+                return `
+                    <div class="max-w-2xl mx-auto px-4 py-8 text-center flex flex-col items-center justify-center h-[calc(100vh-150px)]">
+                        <img src="${state.selectedImage}" class="w-48 h-48 object-cover rounded-lg mx-auto mb-6 shadow-lg">
+                        <div class="flex items-center justify-center space-x-3 text-brand-yellow">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-yellow"></div>
+                            <span class="text-xl font-semibold">Analyzing with AI Model...</span>
+                        </div>
+                    </div>
+                `;
+            } else if (state.usingCamera) {
+                // This part remains the same
+                 return `
+                    <div class="max-w-2xl mx-auto px-4 py-8 animate-fade-in">
+                        <div class="bg-brand-light-dark rounded-lg p-8 border border-gray-800 shadow-lg text-center">
+                            <video id="video-feed" autoplay playsinline class="w-full max-w-md mx-auto rounded-md mb-6 bg-black"></video>
+                            <canvas id="photo-canvas" class="hidden"></canvas>
+                            <button id="capture-photo-btn" class="bg-brand-yellow text-black py-3 px-8 rounded-md font-bold">Capture & Analyze</button>
+                            <button id="cancel-camera-btn" class="py-3 px-8 rounded-md font-semibold border-2 border-gray-700 text-gray-300 ml-4">Cancel</button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // This part remains the same
+                 return `
+                    <div class="max-w-4xl mx-auto px-4 py-8 relative overflow-hidden animate-fade-in">
+                         <div class="absolute -top-1/2 -left-1/2 w-[200%] h-[200%] -z-10 opacity-5">
+                            <svg viewbox="0 0 100 100" preserveAspectRatio="xMidYMid slice" style="width: 100%; height: 100%;">
+                                <defs><radialGradient id="grad1" cx="50%" cy="50%" r="50%" fx="50%" fy="50%"><stop offset="0%" style="stop-color:rgb(227,255,0);stop-opacity:0.5"></stop><stop offset="100%" style="stop-color:rgb(227,255,0);stop-opacity:0"></stop></radialGradient></defs>
+                                <circle cx="50" cy="50" r="30" stroke="#E3FF00" stroke-width="0.2" fill="none"></circle>
+                                <circle cx="50" cy="50" r="20" stroke="#E3FF00" stroke-width="0.2" fill="none"></circle>
+                                <circle cx="50" cy="50" r="10" fill="url(#grad1)"></circle>
+                            </svg>
+                        </div>
+                        <div class="text-center mb-10">
+                            <h1 class="text-5xl font-extrabold mb-4 text-white">AI Eye Health Scanner</h1>
+                            <p class="text-lg text-gray-400">Upload a clear photo of an eye for AI-powered analysis.</p>
+                        </div>
+                        <div class="bg-brand-light-dark/80 backdrop-blur-sm rounded-lg p-8 border border-gray-800 shadow-lg text-center max-w-2xl mx-auto">
+                            <button id="upload-btn" class="w-full bg-brand-yellow text-black py-4 px-6 rounded-md font-bold text-lg">Choose Image File</button>
+                            <input type="file" id="file-input" class="hidden" accept="image/*">
+                            <div class="my-4 text-gray-500">OR</div>
+                            <button id="camera-btn" class="w-full flex items-center justify-center py-3 px-6 border-2 border-gray-700 rounded-md font-semibold text-gray-300 hover:border-brand-yellow hover:text-white transition">
+                                <i data-lucide="camera" class="w-5 h-5 mr-2"></i> Use Camera
+                            </button>
+                        </div>
+                        <div class="mt-8 bg-brand-light-dark/80 backdrop-blur-sm rounded-lg p-6 border border-gray-800 max-w-2xl mx-auto">
+                           <h3 class="text-lg font-bold text-brand-yellow mb-3 flex items-center"><i data-lucide="info" class="w-5 h-5 mr-2"></i>Tips for a Good Scan</h3>
+                           <ul class="text-gray-400 space-y-2 text-sm list-disc list-inside">
+                               <li>Ensure the eye is in focus and well-lit.</li>
+                               <li>Avoid reflections or glare on the eye.</li>
+                               <li>Hold the camera steady to prevent blurring.</li>
+                               <li>Make sure the image is of the eye only, not the entire face.</li>
+                           </ul>
+                        </div>
+                    </div>
+                `;
+            }
+        };
+        
+        const ChatbotPageHTML = () => `
+            <div class="max-w-4xl mx-auto px-4 py-8 h-[calc(100vh-100px)] flex flex-col animate-fade-in">
+                 <div class="bg-brand-light-dark border border-gray-800 rounded-lg shadow-lg flex-1 flex flex-col">
+                    <div id="chat-window" class="flex-1 p-6 overflow-y-auto space-y-4">
+                        ${state.chatHistory.length === 1 ? `
+                            <div class="text-center text-gray-500">
+                                <i data-lucide="bot" class="w-16 h-16 mx-auto mb-4"></i>
+                                <h2 class="text-xl font-bold text-white mb-2">AI Assistant</h2>
+                                <p class="mb-4">Ask me anything about eye health. Here are some suggestions:</p>
+                                <div class="grid grid-cols-2 gap-2 text-sm">
+                                    <button class="suggestion-btn bg-brand-dark p-3 rounded-md hover:bg-gray-800">What are symptoms of dry eyes?</button>
+                                    <button class="suggestion-btn bg-brand-dark p-3 rounded-md hover:bg-gray-800">How to reduce eye strain?</button>
+                                    <button class="suggestion-btn bg-brand-dark p-3 rounded-md hover:bg-gray-800">Tell me about glaucoma.</button>
+                                    <button class="suggestion-btn bg-brand-dark p-3 rounded-md hover:bg-gray-800">Is it safe to wear contacts overnight?</button>
+                                </div>
+                            </div>
+                        ` : ''}
+                        ${state.chatHistory.map(msg => `
+                            <div class="flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}">
+                                <div class="max-w-xs lg:max-w-md px-4 py-3 rounded-lg ${msg.role === 'user' ? 'bg-brand-yellow text-black font-medium' : 'bg-gray-700 text-white'}">${msg.parts[0].text.replace(/\n/g, '<br>')}</div>
+                            </div>
+                        `).join('')}
+                        ${state.isTyping ? `
+                            <div class="flex justify-start">
+                                <div class="px-4 py-3 rounded-lg bg-gray-700">
+                                    <div class="flex space-x-1.5 animate-bounce-custom">
+                                        <div class="dot w-2.5 h-2.5 bg-gray-400 rounded-full"></div>
+                                        <div class="dot w-2.5 h-2.5 bg-gray-400 rounded-full"></div>
+                                        <div class="dot w-2.5 h-2.5 bg-gray-400 rounded-full"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div class="p-4 border-t border-gray-800">
+                        <div class="flex space-x-4">
+                            <input id="chat-input" type="text" placeholder="Ask about eye health..." class="flex-1 px-4 py-3 rounded-md border-2 border-gray-700 bg-brand-dark text-white focus:ring-2 focus:ring-brand-yellow focus:border-brand-yellow transition w-full">
+                            <button id="send-btn" class="bg-brand-yellow text-black px-6 py-3 rounded-md font-bold">Send</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        const DoctorsPageHTML = () => {
+            const checkAvailability = (hours) => {
+                if (!hours) return { text: 'Hours not available', color: 'gray' };
+                const now = new Date();
+                const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday...
+                const currentTime = now.getHours() * 100 + now.getMinutes();
+                
+                // This is a simplified parser. A real app would need a more robust one.
+                const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+                const todayStr = days[currentDay];
+
+                const parts = hours.toLowerCase().split(' ');
+                // Example: "mon-sat 10:00 am - 8:00 pm"
+                if (parts.includes(`${todayStr}-`) || parts.includes(`-${todayStr}`)) {
+                    try {
+                        const startTimeStr = parts[parts.length - 5];
+                        const startMeridiem = parts[parts.length - 4];
+                        const endTimeStr = parts[parts.length - 2];
+                        const endMeridiem = parts[parts.length - 1];
+
+                        let startHour = parseInt(startTimeStr.split(':')[0]);
+                        if (startMeridiem === 'pm' && startHour !== 12) startHour += 12;
+                        const startTime = startHour * 100 + parseInt(startTimeStr.split(':')[1] || 0);
+                        
+                        let endHour = parseInt(endTimeStr.split(':')[0]);
+                        if (endMeridiem === 'pm' && endHour !== 12) endHour += 12;
+                        const endTime = endHour * 100 + parseInt(endTimeStr.split(':')[1] || 0);
+
+                        if (currentTime >= startTime && currentTime <= endTime) {
+                            return { text: 'Open Now', color: 'green' };
+                        }
+                    } catch (e) { /* Fallback */ }
+                }
+                return { text: 'Closed', color: 'red' };
+            };
+
+            return `
+            <div class="max-w-6xl mx-auto px-4 py-8 animate-fade-in">
+                <div class="mb-8">
+                    <h1 class="text-5xl font-extrabold mb-4 text-white">Find Nearby Specialists</h1>
+                    <p class="text-lg text-gray-400">Showing top-rated ophthalmologists in Bangalore.</p>
+                </div>
+                <div id="doctors-list" class="grid md:grid-cols-2 gap-6">
+                    ${state.isLoadingDoctors ? `<div class="flex justify-center items-center p-8 md:col-span-2"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-yellow"></div></div>` : 
+                    state.doctors.length > 0 ? state.doctors.map((doctor, index) => {
+                        const availability = checkAvailability(doctor.hours);
+                        return `
+                        <div class="bg-brand-light-dark border border-gray-800 rounded-lg p-6 shadow-lg flex flex-col justify-between">
+                            <div>
+                                <div class="flex justify-between items-start mb-2">
+                                    <h3 class="text-xl font-bold text-white">${doctor.name}</h3>
+                                    <span class="text-sm font-semibold px-2 py-1 rounded-md bg-${availability.color}-500/20 text-${availability.color}-300">${availability.text}</span>
+                                </div>
+                                <p class="text-gray-400 text-sm">${doctor.address}</p>
+                                <p class="text-gray-500 text-xs mt-1">${doctor.hours || ''}</p>
+                            </div>
+                            <div class="flex items-center space-x-4 mt-4">
+                                <a href="tel:${doctor.phone}" class="flex-1 text-center bg-brand-dark hover:bg-gray-800 text-brand-yellow font-bold py-2 px-4 rounded-md flex items-center justify-center"><i data-lucide="phone" class="w-4 h-4 mr-2"></i> Contact</a>
+                                <button class="book-appointment-btn flex-1 bg-brand-yellow text-black font-bold py-2 px-4 rounded-md" data-doctor-index="${index}">Book</button>
+                            </div>
+                        </div>
+                    `}).join('') : '<div class="md:col-span-2 text-center text-gray-400 bg-brand-light-dark border border-gray-800 rounded-lg p-8">Could not find doctors. Please try again later.</div>'
+                }
+                </div>
+            </div>
+        `;}
+
+        const LearnPageHTML = () => `
+            <div class="max-w-6xl mx-auto px-4 py-8 animate-fade-in">
+                <div class="text-center mb-10">
+                    <h1 class="text-5xl font-extrabold mb-4 text-white">Learn & Practice</h1>
+                    <p class="text-lg text-gray-400">Interactive tools and information to help you maintain healthy vision.</p>
+                </div>
+                <div class="bg-brand-light-dark border border-gray-800 rounded-lg p-6 mb-8">
+                    <h2 class="text-2xl font-bold text-brand-yellow mb-4">Interactive Eye Exercises & Tests</h2>
+                    <div class="grid md:grid-cols-3 gap-4">
+                        <button id="start-exercise-202020" class="bg-brand-dark p-4 rounded-md text-center hover:bg-gray-800 transition">
+                            <i data-lucide="timer" class="w-8 h-8 mx-auto text-brand-yellow mb-2"></i>
+                            <p class="font-semibold text-white">20-20-20 Rule</p>
+                        </button>
+                         <button id="start-exercise-focus" class="bg-brand-dark p-4 rounded-md text-center hover:bg-gray-800 transition">
+                            <i data-lucide="move-horizontal" class="w-8 h-8 mx-auto text-brand-yellow mb-2"></i>
+                            <p class="font-semibold text-white">Focus Shifting</p>
+                        </button>
+                         <button id="start-exercise-blink" class="bg-brand-dark p-4 rounded-md text-center hover:bg-gray-800 transition">
+                            <i data-lucide="eye" class="w-8 h-8 mx-auto text-brand-yellow mb-2"></i>
+                            <p class="font-semibold text-white">Blinking Exercise</p>
+                        </button>
+                        <button id="start-acuity-test" class="bg-brand-dark p-4 rounded-md text-center hover:bg-gray-800 transition">
+                            <i data-lucide="list-checks" class="w-8 h-8 mx-auto text-brand-yellow mb-2"></i>
+                            <p class="font-semibold text-white">Visual Acuity Test</p>
+                        </button>
+                        <button id="start-color-test" class="bg-brand-dark p-4 rounded-md text-center hover:bg-gray-800 transition">
+                            <i data-lucide="palette" class="w-8 h-8 mx-auto text-brand-yellow mb-2"></i>
+                            <p class="font-semibold text-white">Color Blindness Test</p>
+                        </button>
+                    </div>
+                </div>
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="bg-brand-light-dark border border-gray-800 rounded-lg overflow-hidden">
+                        <img src="https://placehold.co/600x300/1E1E1E/E3FF00?text=Cataracts" alt="Cataracts illustration" class="w-full h-48 object-cover">
+                        <div class="p-6">
+                            <h2 class="text-2xl font-bold text-white mb-3">What are Cataracts?</h2>
+                            <p class="text-gray-400">Learn about the causes, symptoms, and treatments for cataracts, a common age-related eye condition.</p>
+                        </div>
+                    </div>
+                    <div class="bg-brand-light-dark border border-gray-800 rounded-lg overflow-hidden">
+                        <img src="https://placehold.co/600x300/1E1E1E/E3FF00?text=Glaucoma" alt="Glaucoma illustration" class="w-full h-48 object-cover">
+                        <div class="p-6">
+                            <h2 class="text-2xl font-bold text-white mb-3">Understanding Glaucoma</h2>
+                            <p class="text-gray-400">Discover why early detection is critical for managing glaucoma, the "silent thief of sight."</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const DashboardPageHTML = () => `
+            <div class="max-w-6xl mx-auto px-4 py-8 animate-fade-in">
+                <h1 class="text-4xl font-extrabold mb-8 text-white">Welcome back, ${state.userProfile.name}</h1>
+                
+                <!-- Summary Cards -->
+                <div class="grid md:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-brand-light-dark border border-gray-800 rounded-lg p-6 text-center">
+                        <h3 class="text-4xl font-bold text-brand-yellow">${state.appointments.length}</h3>
+                        <p class="text-gray-400">Upcoming Appointments</p>
+                    </div>
+                    <div class="bg-brand-light-dark border border-gray-800 rounded-lg p-6 text-center">
+                        <h3 class="text-4xl font-bold text-brand-yellow">${state.scanHistory.length}</h3>
+                        <p class="text-gray-400">Total Scans Taken</p>
+                    </div>
+                    <div class="bg-brand-light-dark border border-gray-800 rounded-lg p-6 text-center">
+                        <h3 class="text-4xl font-bold text-brand-yellow">${state.medications.length}</h3>
+                        <p class="text-gray-400">Medication Reminders</p>
+                    </div>
+                </div>
+
+                <div class="grid lg:grid-cols-3 gap-8">
+                    <!-- Left Column -->
+                    <div class="lg:col-span-2 space-y-8">
+                        <!-- Appointments -->
+                        <div class="bg-brand-light-dark border border-gray-800 rounded-lg p-6">
+                            <div class="flex justify-between items-center mb-4">
+                                <h2 class="text-2xl font-bold text-white">Upcoming Appointments</h2>
+                                <button id="add-appointment-btn" class="text-brand-yellow font-semibold flex items-center"><i data-lucide="plus" class="w-5 h-5 mr-1"></i> Add</button>
+                            </div>
+                            <div class="space-y-3">
+                                ${state.appointments.length > 0 ? state.appointments.map((app, index) => `
+                                    <div class="bg-brand-dark p-4 rounded-md flex justify-between items-center">
+                                        <div>
+                                            <p class="font-bold text-white">${app.doctorName}</p>
+                                            <p class="text-gray-400">${new Date(app.date).toLocaleString()}</p>
+                                        </div>
+                                        <button class="delete-appointment-btn text-red-500 hover:text-red-400" data-index="${index}"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+                                    </div>
+                                `).join('') : '<div class="text-center text-gray-500 py-4"><p>No upcoming appointments.</p><button class="nav-btn mt-2 text-brand-yellow font-semibold" data-page="doctors">Find a Doctor</button></div>'}
+                            </div>
+                        </div>
+                        <!-- Scan History -->
+                        <div class="bg-brand-light-dark border border-gray-800 rounded-lg p-6">
+                            <h2 class="text-2xl font-bold text-white mb-4">Scan History</h2>
+                            <div class="space-y-3">
+                                ${state.scanHistory.length > 0 ? state.scanHistory.map((scan, index) => `
+                                    <div class="bg-brand-dark p-4 rounded-md flex justify-between items-center">
+                                        <div>
+                                            <p class="font-bold text-white">${scan.prediction.replace('_', ' ')}</p>
+                                            <p class="text-sm text-gray-500">${new Date(scan.date).toLocaleDateString()}</p>
+                                        </div>
+                                        <button class="view-scan-details-btn text-brand-yellow font-semibold" data-index="${index}">View Details</button>
+                                    </div>
+                                `).join('') : '<div class="text-center text-gray-500 py-4"><p>No past scans found.</p><button class="nav-btn mt-2 text-brand-yellow font-semibold" data-page="scan">Perform a Scan</button></div>'}
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Right Column -->
+                    <div class="space-y-8">
+                        <!-- Profile -->
+                        <div class="bg-brand-light-dark border border-gray-800 rounded-lg p-6">
+                             <div class="flex justify-between items-center mb-4">
+                                <h2 class="text-2xl font-bold text-white">My Profile</h2>
+                                <button id="edit-profile-btn" class="text-brand-yellow font-semibold">Edit</button>
+                            </div>
+                            <p class="text-gray-400"><strong>Age:</strong> ${state.userProfile.age || 'N/A'}</p>
+                            <p class="text-gray-400"><strong>Conditions:</strong> ${state.userProfile.conditions || 'None'}</p>
+                        </div>
+                        <!-- Medication Reminders -->
+                        <div class="bg-brand-light-dark border border-gray-800 rounded-lg p-6">
+                             <div class="flex justify-between items-center mb-4">
+                                <h2 class="text-2xl font-bold text-white">Medication Reminders</h2>
+                                <button id="add-medication-btn" class="text-brand-yellow font-semibold flex items-center"><i data-lucide="plus" class="w-5 h-5 mr-1"></i> Add</button>
+                            </div>
+                             <div class="space-y-3">
+                                ${state.medications.length > 0 ? state.medications.map((med, index) => `
+                                    <div class="bg-brand-dark p-4 rounded-md flex justify-between items-center">
+                                        <div>
+                                            <p class="font-bold text-white">${med.name}</p>
+                                            <p class="text-gray-400">${med.time}</p>
+                                        </div>
+                                        <button class="delete-medication-btn text-red-500 hover:text-red-400" data-index="${index}"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+                                    </div>
+                                `).join('') : '<p class="text-center text-gray-500 py-4">No reminders set.</p>'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const ProfilePageHTML = () => `
+            <div class="max-w-2xl mx-auto px-4 py-8 animate-fade-in">
+                <div class="text-center mb-10">
+                    <h1 class="text-5xl font-extrabold mb-4 text-white">Health Profile</h1>
+                    <p class="text-lg text-gray-400">This information helps provide better context.</p>
+                </div>
+                <div class="bg-brand-light-dark border border-gray-800 rounded-lg p-8 space-y-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">Name</label>
+                        <input id="profile-name" type="text" value="${state.userProfile.name}" class="w-full px-4 py-3 rounded-md border-2 border-gray-700 bg-brand-dark text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">Age</label>
+                        <input id="profile-age" type="number" value="${state.userProfile.age}" class="w-full px-4 py-3 rounded-md border-2 border-gray-700 bg-brand-dark text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">Pre-existing Conditions (e.g., Diabetes)</label>
+                        <textarea id="profile-conditions" rows="3" class="w-full px-4 py-3 rounded-md border-2 border-gray-700 bg-brand-dark text-white">${state.userProfile.conditions}</textarea>
+                    </div>
+                    <button id="save-profile-btn" class="w-full bg-brand-yellow text-black py-3 rounded-md font-bold text-lg">Save Profile</button>
+                </div>
+            </div>
+        `;
+        
+        const SymptomCheckerPageHTML = () => {
+            const selectedCount = Object.values(state.symptoms).filter(Boolean).length;
+            const getPotentialCausesHTML = () => {
+                if (selectedCount === 0) return '<p class="text-gray-500">Select symptoms to see potential causes.</p>';
+                let causes = [];
+                if (state.symptoms.redness) causes.push('Conjunctivitis (Pinkeye)', 'Dry Eye Syndrome');
+                if (state.symptoms.blurriness) causes.push('Refractive Errors', 'Cataracts');
+                if (state.symptoms.pain) causes.push('Corneal Abrasion', 'Glaucoma');
+                if (state.symptoms.floaters) causes.push('Vitreous Detachment', 'Retinal Tear');
+                if (state.symptoms.headaches) causes.push('Eye Strain', 'Migraine');
+                if (state.symptoms['double-vision']) causes.push('Strabismus', 'Astigmatism');
+                
+                // Remove duplicates and limit
+                const uniqueCauses = [...new Set(causes)].slice(0, 4);
+
+                return `
+                    <ul class="space-y-2">
+                        ${uniqueCauses.map(cause => `<li class="text-gray-300">${cause}</li>`).join('')}
+                    </ul>
+                    <p class="text-xs text-gray-500 mt-4">This is not a diagnosis. Please consult a doctor.</p>
+                `;
+            };
+
+            return `
+            <div class="max-w-6xl mx-auto px-4 py-8 animate-fade-in">
+                <div class="text-center mb-10">
+                    <h1 class="text-5xl font-extrabold mb-4 text-white">Interactive Symptom Checker</h1>
+                    <p class="text-lg text-gray-400">Click a part of the eye or select symptoms below for an AI analysis.</p>
+                </div>
+
+                <div class="grid lg:grid-cols-3 gap-8">
+                    <!-- Interactive Eye Diagram -->
+                    <div class="lg:col-span-2 mb-8 p-4 bg-brand-light-dark border border-gray-800 rounded-lg">
+                        <div class="text-center mb-4 h-8">
+                            <span id="hovered-eye-part-name" class="text-brand-yellow font-bold text-lg">${state.hoveredEyePart}</span>
+                        </div>
+                        <svg id="eye-diagram" viewBox="0 0 300 200" class="w-full h-auto">
+                            <title>Interactive Eye Diagram</title>
+                            <path class="eye-diagram-part ${state.symptoms.blurriness ? 'active' : ''}" data-symptom="blurriness" data-name="Cornea / Lens" d="M150 100 C 180 60, 220 60, 250 100 C 220 140, 180 140, 150 100 Z" />
+                            <ellipse class="eye-diagram-part ${state.symptoms.blurriness ? 'active' : ''}" data-symptom="blurriness" data-name="Cornea / Lens" cx="160" cy="100" rx="15" ry="30" />
+                            <path class="eye-diagram-part ${state.symptoms.floaters ? 'active' : ''}" data-symptom="floaters" data-name="Retina" d="M50 50 C 80 80, 80 120, 50 150" stroke-width="10" fill="none" />
+                            <rect class="eye-diagram-part ${state.symptoms.pain ? 'active' : ''}" data-symptom="pain" data-name="Optic Nerve" x="20" y="90" width="30" height="20" />
+                            <circle class="eye-diagram-part ${state.symptoms.redness ? 'active' : ''}" data-symptom="redness" data-name="Sclera (White of Eye)" cx="150" cy="100" r="80" />
+                        </svg>
+                    </div>
+
+                    <!-- Potential Causes -->
+                    <div class="bg-brand-light-dark border border-gray-800 rounded-lg p-6">
+                        <h2 class="text-2xl font-bold text-white mb-4">Potential Causes</h2>
+                        <div id="potential-causes">
+                            ${getPotentialCausesHTML()}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-brand-light-dark border border-gray-800 rounded-lg p-8 grid grid-cols-2 md:grid-cols-3 gap-4">
+                    ${Object.keys(state.symptoms).map(symptom => `
+                        <button class="symptom-btn p-4 rounded-md text-center font-semibold transition capitalize ${state.symptoms[symptom] ? 'bg-brand-yellow text-black' : 'bg-gray-700 text-white'}" data-symptom="${symptom}">
+                            ${symptom.replace('-', ' ')}
+                        </button>
+                    `).join('')}
+                </div>
+                <div class="mt-8 text-center">
+                    <button id="analyze-symptoms-btn" class="bg-brand-yellow text-black py-3 px-8 rounded-md font-bold text-lg ${selectedCount === 0 ? 'opacity-50 cursor-not-allowed' : ''}" ${selectedCount === 0 ? 'disabled' : ''}>
+                        Analyze Symptoms with AI
+                    </button>
+                </div>
+            </div>
+            `;
+        };
+
+        // =================================================================
+        // APPLICATION LOGIC
+        // =================================================================
+        
+        function navigate(page, context = null) {
+            state.currentPage = page;
+            state.mobileMenuOpen = false;
+            if (page === 'doctors') findDoctors();
+            render();
+            if (page === 'chatbot' && context) {
+                getChatbotResponse(context);
+            }
+        }
+
+        function login() {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            // Send credentials to Flask
+            fetch("/", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ email: email, password: password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    state.isLoggedIn = true;
+                    state.currentPage = 'dashboard';
+                    loadAllData();
+                    render();
+                    showNotification(data.message, 'success');
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                showNotification('Server error. Try again later.', 'error');
+            });
+        }
+
+        async function performRealAnalysis(file) {
+            state.isAnalyzing = true;
+            render();
+            const formData = new FormData();
+            formData.append('image_file', file);
+            try {
+                const response = await fetch('http://127.0.0.1:5000/predict', { method: 'POST', body: formData });
+                if (!response.ok) throw new Error(`Server error: ${response.statusText}`);
+                const result = await response.json();
+                state.scanResult = result;
+                saveScanToHistory(result);
+            } catch (error) {
+                console.error("Prediction Error:", error);
+                showNotification(`Error connecting to the analysis server: ${error.message}`, 'error');
+                state.scanResult = { prediction: 'Error' };
+            } finally {
+                state.isAnalyzing = false;
+                render();
+            }
+        }
+        
+        async function fetchDashboardData() {
+            // This function only runs if the user is logged in.
+            if (!state.isLoggedIn) return;
+
+            try {
+                state.isLoading = true;
+                // We call render() here if the user is already on the dashboard
+                // to show the loading spinner immediately.
+                if(state.currentPage === 'dashboard') render();
+
+                const response = await fetch('/dashboard_data');
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to fetch scan history.');
+                }
+                const data = await response.json();
+                state.scanHistory = data.scan_history || [];
+
+            } catch (error) {
+                console.error("Fetch Error:", error);
+                showToast(error.message, 'error');
+                state.scanHistory = []; // Clear history on error to prevent showing old data.
+            } finally {
+                state.isLoading = false;
+                // If the user is on the dashboard, we render again to show the fetched data.
+                if(state.currentPage === 'dashboard') render();
+            }
+        }
+
+        async function getChatbotResponse(userMessage) {
+            state.isTyping = true;
+            if (state.currentPage !== 'chatbot') {
+                state.currentPage = 'chatbot';
+                render();
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            state.chatHistory.push({ role: 'user', parts: [{ text: userMessage }] });
+            render();
+            
+            const apiKey = "AIzaSyAUuxA8b40oTyBgweQNodsh2R928H1U5Hc"; // <<< PASTE YOUR GEMINI API KEY HERE
+            if (apiKey === "YOUR_GEMINI_API_KEY") {
+                state.chatHistory.push({ role: 'model', parts: [{ text: "Chatbot is not configured. An API key is required." }] });
+                state.isTyping = false;
+                render();
+                return;
+            }
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+            
+            const systemPrompt = "You are an expert AI assistant for eye health called SIO. Provide helpful, informative, and safe advice regarding eye health questions. You must never provide a medical diagnosis. Always strongly recommend consulting a qualified ophthalmologist for any diagnosis or medical advice. Keep your answers concise and easy to understand. Format your response with markdown for readability.";
+            const payload = {
+                contents: state.chatHistory.slice(1),
+                systemInstruction: { parts: [{ text: systemPrompt }] }
+            };
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+                const result = await response.json();
+                const botResponse = result.candidates[0].content.parts[0].text;
+                state.chatHistory.push({ role: 'model', parts: [{ text: botResponse }] });
+            } catch (error) {
+                console.error("Chatbot API Error:", error);
+                state.chatHistory.push({ role: 'model', parts: [{ text: "Sorry, I'm having trouble connecting to the AI assistant right now." }] });
+            } finally {
+                state.isTyping = false;
+                render();
+            }
+        }
+
+        function findDoctors() {
+            state.isLoadingDoctors = true;
+            render();
+            
+            // Using a detailed, hardcoded list of real Bangalore doctors
+            const bangaloreDoctors = [
+                { name: 'Narayana Nethralaya', address: '121/C, Chord Road, Rajajinagar', phone: '08066121300', hours: 'Mon-Sat 9:00 AM - 7:00 PM' },
+                { name: 'Dr. Agarwal\'s Eye Hospital', address: '7, Hosur Rd, Muneshwara Nagar', phone: '08041105444', hours: 'Mon-Sun 9:00 AM - 8:00 PM' },
+                { name: 'Sankara Eye Hospital', address: 'Varthur Main Road, Marathahalli', phone: '08028542727', hours: 'Mon-Sat 8:00 AM - 6:00 PM' },
+                { name: 'Prabha Eye Clinic', address: '504, 40th Cross Rd, 8th Block, Jayanagar', phone: '08026634953', hours: 'Mon-Sat 9:30 AM - 7:30 PM' },
+                { name: 'Shekar Eye Hospital', address: '633, 100 Feet Ring Rd, 4th Phase, JP Nagar', phone: '09980562020', hours: 'Mon-Sat 9:00 AM - 8:30 PM' },
+                { name: 'Vasan Eye Care', address: '840, Modi Hospital Road, Basaveshwaranagar', phone: '08039890539', hours: 'Mon-Sun 9:00 AM - 9:00 PM' },
+                { name: 'Nethradhama Super Speciality Eye Hospital', address: '256/14, Kanakapura Main Road, 7th Block, Jayanagar', phone: '08026633533', hours: 'Mon-Sat 9:00 AM - 7:00 PM' },
+                { name: 'Devi Eye Hospital', address: '80, 2nd Stage, Kengeri Satellite Town', phone: '09886090444', hours: 'Mon-Sat 9:00 AM - 8:00 PM' },
+                { name: 'The Eye Foundation', address: '70, 30th Cross Rd, 4th T Block East, Jayanagar', phone: '08041209999', hours: 'Mon-Sat 9:00 AM - 7:00 PM' },
+                { name: 'Manipal Hospital', address: '98, HAL Old Airport Rd, Kodihalli', phone: '08025024444', hours: 'Mon-Sun 12:00 AM - 11:59 PM' },
+                { name: 'Karthik Netralaya', address: '89, 7th Cross Road, NR Colony, Basavanagudi', phone: '08026624545', hours: 'Mon-Sat 9:30 AM - 7:00 PM' },
+                { name: 'Minto Ophthalmic Hospital', address: 'Albert Victor Road, Chamrajpet', phone: '08026707176', hours: 'Mon-Sat 9:00 AM - 4:00 PM' },
+                { name: 'Nelivigi Eye Hospital', address: '11/9, Hosur Rd, Chikku Lakshmaiah Layout, Adugodi', phone: '08026564390', hours: 'Mon-Sat 9:30 AM - 7:30 PM' },
+                { name: 'Dr. Solanki Eye Hospital', address: '9, Millers Road, Vasanth Nagar', phone: '08022281818', hours: 'Mon-Sat 10:00 AM - 7:00 PM' },
+                { name: 'Bangalore West Lions Eye Hospital', address: '5, Lions Eye Hospital Road, JC Road', phone: '08022235005', hours: 'Mon-Sat 9:00 AM - 5:00 PM' },
+                { name: 'Samprathi Eye Hospital and Squint Centre', address: '36, 1st Main Rd, 3rd Phase, JP Nagar', phone: '08026584255', hours: 'Mon-Sat 10:00 AM - 8:00 PM' },
+                { name: 'Dr. Divya\'s Eye Clinic', address: '1st Floor, 1st Main Road, Vyalikaval', phone: '09845018500', hours: 'Mon-Sat 10:00 AM - 6:00 PM' },
+                { name: 'Vijaya Nethralaya', address: '1, 11th Main Rd, Hanumanthnagar', phone: '08026673131', hours: 'Mon-Sat 9:30 AM - 8:00 PM' },
+                { name: 'Dr. M. C. Modi Eye Hospital', address: 'Mahalakshmi Layout', phone: '08023492233', hours: 'Mon-Sat 9:00 AM - 6:00 PM' },
+                { name: 'Sri Eye Care', address: '113, 1st Floor, 1st Cross, Koramangala', phone: '08041571500', hours: 'Mon-Sat 10:00 AM - 7:00 PM' }
+            ];
+
+            setTimeout(() => { // Simulate loading
+                state.doctors = bangaloreDoctors;
+                state.isLoadingDoctors = false;
+                render();
+            }, 1000);
+        }
+        
+        function saveAllData() {
+            localStorage.setItem('sioUserProfile', JSON.stringify(state.userProfile));
+            // localStorage.setItem('sioScanHistory', JSON.stringify(state.scanHistory));
+            localStorage.setItem('sioAppointments', JSON.stringify(state.appointments));
+            localStorage.setItem('sioMedications', JSON.stringify(state.medications));
+        }
+
+        function saveScanToHistory(result) {
+            state.scanHistory.unshift({ ...result, date: new Date().toISOString() });
+            if (state.scanHistory.length > 10) state.scanHistory.pop();
+            saveAllData();
+        }
+
+        function loadAllData() {
+            const profile = localStorage.getItem('sioUserProfile');
+            if (profile) state.userProfile = JSON.parse(profile);
+            // const history = localStorage.getItem('sioScanHistory');
+            // if (history) state.scanHistory = JSON.parse(history);
+            const appointments = localStorage.getItem('sioAppointments');
+            if (appointments) state.appointments = JSON.parse(appointments);
+            const medications = localStorage.getItem('sioMedications');
+            if (medications) state.medications = JSON.parse(medications);
+        }
+
+        // function saveScanToHistory(result) {
+        //     state.scanHistory.unshift({ ...result, date: new Date().toISOString() });
+        //     if (state.scanHistory.length > 10) state.scanHistory.pop();
+        //     saveAllData();
+        // }
+
+        // =================================================================
+        // API INTERACTIONS
+        // =================================================================
+        async function analyzeImage(imageFile) {
+            state.isAnalyzing = true;
+            state.selectedImage = URL.createObjectURL(imageFile);
+            render(); // Show the analyzing spinner UI
+
+            const formData = new FormData();
+            formData.append('image_file', imageFile, imageFile.name);
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.error || 'An unknown error occurred during prediction.');
+                }
+                
+                // Store the result from the backend
+                state.scanResult = result;
+                showToast('Analysis complete and saved to your history!', 'success');
+
+                // IMPORTANT: After a successful scan, we will automatically fetch
+                // the latest data to update the dashboard in the background.
+                // This requires the fetchDashboardData function from our previous discussion.
+                // If you don't have it, we can add it next. For now, this will work.
+                if(window.fetchDashboardData) {
+                   await window.fetchDashboardData();
+                }
+
+            } catch (error) {
+                console.error('Analysis Error:', error);
+                showToast(`Analysis Failed: ${error.message}`, 'error');
+                state.scanResult = null; // Clear result on error
+                state.selectedImage = null;
+            } finally {
+                state.isAnalyzing = false;
+                render(); // Re-render to show the final result page or clear on error
+            }
+        }
+        
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                analyzeImage(file);
+            }
+        }
+        
+        async function startCamera() {
+            state.usingCamera = true;
+            render(); 
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+                const videoFeed = document.getElementById('video-feed');
+                if (videoFeed) { videoFeed.srcObject = stream; }
+            } catch (err) {
+                showNotification('Camera access denied. Please enable permission.', 'error');
+                state.usingCamera = false;
+                render();
+            }
+        }
+        
+        function stopCamera() {
+            const videoFeed = document.getElementById('video-feed');
+            if(videoFeed && videoFeed.srcObject) {
+                videoFeed.srcObject.getTracks().forEach(track => track.stop());
+                videoFeed.srcObject = null;
+            }
+        }
+
+        function capturePhoto() {
+                const video = document.getElementById('video-feed');
+                const canvas = document.getElementById('photo-canvas');
+                if (!video || !canvas) return;
+
+                const context = canvas.getContext('2d');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                canvas.toBlob(blob => {
+                    if (blob) {
+                        const photoFile = new File([blob], "camera_capture.jpg", { type: "image/jpeg" });
+                        analyzeImage(photoFile);
+                    }
+                }, 'image/jpeg');
+
+                stopCamera(); // Assumes you have a stopCamera function
+        }
+
+        function sendMessage() {
+            const chatInput = document.getElementById('chat-input');
+            const message = chatInput.value.trim();
+            if (message) {
+                getChatbotResponse(message);
+                chatInput.value = '';
+            }
+        }
+
+        function openModal(content) {
+            state.isModalOpen = true;
+            state.modalContent = content;
+            renderModal();
+        }
+
+        function closeModal() {
+            if (state.exerciseTimer) {
+                clearInterval(state.exerciseTimer);
+                state.exerciseTimer = null;
+            }
+            state.isModalOpen = false;
+            state.modalContent = null;
+            renderModal();
+        }
+
+        function showNotification(message, type = 'success') {
+            const bgColor = type === 'error' ? 'bg-red-500' : 'bg-green-500';
+            const notification = document.createElement('div');
+            notification.className = `notification ${bgColor} text-white font-bold py-2 px-4 rounded-md shadow-lg`;
+            notification.textContent = message;
+            
+            const container = document.getElementById('notification-container');
+            container.appendChild(notification);
+
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        // =================================================================
+        // EVENT LISTENERS
+        // =================================================================
+        function addEventListeners() {
+            if (state.isLoggedIn) {
+                document.querySelectorAll('.nav-btn').forEach(btn => btn.addEventListener('click', () => navigate(btn.dataset.page)));
+                document.getElementById('mobile-menu-btn')?.addEventListener('click', () => { state.mobileMenuOpen = !state.mobileMenuOpen; render(); });
+
+                if (state.currentPage === 'scan') {
+                    document.getElementById('upload-btn')?.addEventListener('click', () => document.getElementById('file-input').click());
+                    document.getElementById('file-input')?.addEventListener('change', handleFileUpload);
+                    document.getElementById('camera-btn')?.addEventListener('click', startCamera);
+                    document.getElementById('capture-photo-btn')?.addEventListener('click', capturePhoto);
+                    document.getElementById('cancel-camera-btn')?.addEventListener('click', () => { stopCamera(); state.usingCamera = false; render(); });
+                    document.getElementById('new-scan-btn')?.addEventListener('click', () => { state.scanResult = null; state.selectedImage = null; render(); });
+                } else if (state.currentPage === 'chatbot') {
+                    document.getElementById('send-btn')?.addEventListener('click', sendMessage);
+                    document.getElementById('chat-input')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+                    document.querySelectorAll('.suggestion-btn').forEach(btn => btn.addEventListener('click', (e) => {
+                        document.getElementById('chat-input').value = e.target.textContent;
+                        sendMessage();
+                    }));
+                } else if (state.currentPage === 'profile') {
+                    document.getElementById('save-profile-btn')?.addEventListener('click', () => {
+                        state.userProfile.name = document.getElementById('profile-name').value;
+                        state.userProfile.age = document.getElementById('profile-age').value;
+                        state.userProfile.conditions = document.getElementById('profile-conditions').value;
+                        saveAllData();
+                        showNotification('Profile Saved!');
+                        navigate('dashboard');
+                    });
+                } else if (state.currentPage === 'dashboard') {
+                    document.getElementById('edit-profile-btn')?.addEventListener('click', () => navigate('profile'));
+                    document.getElementById('add-appointment-btn')?.addEventListener('click', () => showAppointmentModal());
+                    document.getElementById('add-medication-btn')?.addEventListener('click', () => showMedicationModal());
+                    document.querySelectorAll('.delete-appointment-btn').forEach(btn => btn.addEventListener('click', (e) => {
+                        state.appointments.splice(e.currentTarget.dataset.index, 1);
+                        saveAllData();
+                        render();
+                    }));
+                    document.querySelectorAll('.delete-medication-btn').forEach(btn => btn.addEventListener('click', (e) => {
+                        state.medications.splice(e.currentTarget.dataset.index, 1);
+                        saveAllData();
+                        render();
+                    }));
+                    document.querySelectorAll('.view-scan-details-btn').forEach(btn => btn.addEventListener('click', (e) => {
+                        const scan = state.scanHistory[e.currentTarget.dataset.index];
+                        showScanDetailsModal(scan);
+                    }));
+                } else if (state.currentPage === 'learn') {
+                    document.getElementById('start-exercise-202020')?.addEventListener('click', () => startEyeExercise('202020'));
+                    document.getElementById('start-exercise-focus')?.addEventListener('click', () => startEyeExercise('focus'));
+                    document.getElementById('start-exercise-blink')?.addEventListener('click', () => startEyeExercise('blink'));
+                    document.getElementById('start-acuity-test')?.addEventListener('click', startAcuityTest);
+                    document.getElementById('start-color-test')?.addEventListener('click', startColorBlindnessTest);
+                } else if (state.currentPage === 'doctors') {
+                    document.querySelectorAll('.book-appointment-btn').forEach(btn => {
+                        btn.addEventListener('click', (e) => {
+                            const doctorIndex = e.target.dataset.doctorIndex;
+                            const doctor = state.doctors[doctorIndex];
+                            showAppointmentModal(doctor);
+                        });
+                    });
+                } else if (state.currentPage === 'symptoms') {
+                     document.querySelectorAll('.symptom-btn').forEach(btn => btn.addEventListener('click', (e) => {
+                        const symptom = e.currentTarget.dataset.symptom;
+                        state.symptoms[symptom] = !state.symptoms[symptom];
+                        render();
+                    }));
+                    document.getElementById('analyze-symptoms-btn')?.addEventListener('click', () => {
+                        const selectedSymptoms = Object.entries(state.symptoms)
+                            .filter(([_, isSelected]) => isSelected)
+                            .map(([symptom, _]) => symptom.replace('-', ' '))
+                            .join(', ');
+                        
+                        if (!selectedSymptoms) return;
+
+                        const prompt = `I am experiencing the following eye symptoms: ${selectedSymptoms}. Based on these symptoms, what are some potential general causes, and what steps should I take? Please remember not to give a diagnosis.`;
+                        navigate('chatbot', prompt);
+                    });
+                    document.querySelectorAll('.eye-diagram-part').forEach(part => {
+                        part.addEventListener('mouseover', (e) => {
+                            const nameDisplay = document.getElementById('hovered-eye-part-name');
+                            if (nameDisplay) nameDisplay.textContent = e.currentTarget.dataset.name;
+                        });
+                        part.addEventListener('mouseout', () => {
+                             const nameDisplay = document.getElementById('hovered-eye-part-name');
+                            if (nameDisplay) nameDisplay.textContent = '';
+                        });
+                        part.addEventListener('click', (e) => {
+                            const symptom = e.currentTarget.dataset.symptom;
+                            state.symptoms[symptom] = !state.symptoms[symptom];
+                            render();
+                        });
+                    });
+                }
+
+            } else {
+                document.getElementById('login-btn')?.addEventListener('click', login);
+            }
+        }
+        
+        // =================================================================
+        // MODAL LOGIC & TEMPLATES
+        // =================================================================
+        const modalContainer = document.getElementById('modal-container');
+
+        function renderModal() {
+            if (!state.isModalOpen) {
+                modalContainer.innerHTML = '';
+                return;
+            }
+            modalContainer.innerHTML = `
+                <div class="modal-backdrop">
+                    <div class="bg-brand-light-dark border border-gray-800 rounded-lg p-8 w-full max-w-lg relative animate-pop-in">
+                        ${state.modalContent}
+                    </div>
+                </div>
+            `;
+            lucide.createIcons();
+            // Add event listeners for modal buttons
+            document.getElementById('modal-close-btn')?.addEventListener('click', closeModal);
+            document.getElementById('save-appointment-btn')?.addEventListener('click', () => {
+                const doctorName = document.getElementById('appointment-doctor').value;
+                const date = document.getElementById('appointment-date').value;
+                if (doctorName && date) {
+                    state.appointments.push({ doctorName, date });
+                    saveAllData();
+                    closeModal();
+                    render();
+                    showNotification('Appointment Saved!');
+                } else {
+                    showNotification('Please fill out all fields.', 'error');
+                }
+            });
+            document.getElementById('save-medication-btn')?.addEventListener('click', () => {
+                const name = document.getElementById('medication-name').value;
+                const time = document.getElementById('medication-time').value;
+                if (name && time) {
+                    state.medications.push({ name, time });
+                    saveAllData();
+                    closeModal();
+                    render();
+                    showNotification('Medication Reminder Added!');
+                } else {
+                    showNotification('Please fill out all fields.', 'error');
+                }
+            });
+             document.querySelectorAll('.acuity-option').forEach(btn => btn.addEventListener('click', (e) => handleAcuityAnswer(e.target.textContent)));
+             document.querySelectorAll('.color-test-option').forEach(btn => btn.addEventListener('click', (e) => handleColorTestAnswer(e.target.dataset.value)));
+        }
+
+        function showAppointmentModal(doctor = null) {
+            const content = `
+                <h2 class="text-2xl font-bold text-white mb-6">Book Appointment</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">Doctor/Clinic</label>
+                        <input id="appointment-doctor" type="text" value="${doctor ? doctor.name : ''}" class="w-full px-4 py-3 rounded-md border-2 border-gray-700 bg-brand-dark text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">Date & Time</label>
+                        <input id="appointment-date" type="datetime-local" class="w-full px-4 py-3 rounded-md border-2 border-gray-700 bg-brand-dark text-white">
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end space-x-4">
+                    <button id="modal-close-btn" class="py-2 px-5 rounded-md font-semibold border-2 border-gray-700 text-gray-300">Cancel</button>
+                    <button id="save-appointment-btn" class="bg-brand-yellow text-black font-bold py-2 px-5 rounded-md">Save</button>
+                </div>
+            `;
+            openModal(content);
+        }
+        
+        function showMedicationModal() {
+            const content = `
+                <h2 class="text-2xl font-bold text-white mb-6">Add Medication Reminder</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">Medication Name</label>
+                        <input id="medication-name" type="text" class="w-full px-4 py-3 rounded-md border-2 border-gray-700 bg-brand-dark text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">Time</label>
+                        <input id="medication-time" type="time" class="w-full px-4 py-3 rounded-md border-2 border-gray-700 bg-brand-dark text-white">
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end space-x-4">
+                    <button id="modal-close-btn" class="py-2 px-5 rounded-md font-semibold border-2 border-gray-700 text-gray-300">Cancel</button>
+                    <button id="save-medication-btn" class="bg-brand-yellow text-black font-bold py-2 px-5 rounded-md">Save</button>
+                </div>
+            `;
+            openModal(content);
+        }
+        
+        function showScanDetailsModal(scan) {
+             const content = `
+                <h2 class="text-2xl font-bold text-white mb-4">Scan Details</h2>
+                <p class="text-lg text-brand-yellow font-bold">${scan.prediction.replace('_', ' ')}</p>
+                <p class="text-gray-500 text-sm mb-4">Scanned on: ${new Date(scan.date).toLocaleString()}</p>
+                <p class="text-gray-300">This was a preliminary analysis based on the uploaded image. For a definitive diagnosis, please consult a qualified ophthalmologist and share this result with them.</p>
+                <div class="mt-6 flex justify-end">
+                    <button id="modal-close-btn" class="bg-brand-yellow text-black font-bold py-2 px-5 rounded-md">Close</button>
+                </div>
+            `;
+            openModal(content);
+        }
+
+        function startEyeExercise(type) {
+            let content = '';
+            if (type === '202020') {
+                state.exerciseSecondsLeft = 20;
+                content = `
+                    <div class="text-center">
+                        <h2 class="text-2xl font-bold text-white mb-2">20-20-20 Rule</h2>
+                        <p class="text-gray-400 mb-4">Look at an object at least 20 feet away.</p>
+                        <div id="timer-display" class="text-6xl font-bold text-brand-yellow my-4">${state.exerciseSecondsLeft}</div>
+                        <button id="modal-close-btn" class="bg-brand-yellow text-black font-bold py-2 px-5 rounded-md">Stop Exercise</button>
+                    </div>
+                `;
+                openModal(content);
+                
+                state.exerciseTimer = setInterval(() => {
+                    state.exerciseSecondsLeft--;
+                    const timerDisplay = document.getElementById('timer-display');
+                    if (timerDisplay) timerDisplay.textContent = state.exerciseSecondsLeft;
+                    if (state.exerciseSecondsLeft <= 0) {
+                        clearInterval(state.exerciseTimer);
+                        state.exerciseTimer = null;
+                        if (document.getElementById('timer-display')) {
+                           document.getElementById('timer-display').innerHTML = '<i data-lucide="check-circle" class="w-16 h-16 mx-auto text-green-500"></i>';
+                           lucide.createIcons();
+                        }
+                    }
+                }, 1000);
+            } else if (type === 'focus') {
+                 content = `
+                    <div class="text-center">
+                        <h2 class="text-2xl font-bold text-white mb-2">Focus Shifting</h2>
+                        <p class="text-gray-400 mb-4">Hold a finger a few inches from your eye and focus on it. Slowly move it away, holding your focus. Look away into the distance, then back at your finger. Repeat 5 times.</p>
+                        <button id="modal-close-btn" class="bg-brand-yellow text-black font-bold py-2 px-5 rounded-md mt-4">Done</button>
+                    </div>
+                `;
+                openModal(content);
+            } else if (type === 'blink') {
+                 content = `
+                    <div class="text-center">
+                        <h2 class="text-2xl font-bold text-white mb-2">Blinking Exercise</h2>
+                        <p class="text-gray-400 mb-4">Close your eyes for 2 seconds, then open them. Repeat this 10 times to help remoisten your eyes and reduce dryness.</p>
+                        <button id="modal-close-btn" class="bg-brand-yellow text-black font-bold py-2 px-5 rounded-md mt-4">Done</button>
+                    </div>
+                `;
+                openModal(content);
+            }
+        }
+
+        function startAcuityTest() {
+            state.acuityTestLevel = 0;
+            showNextAcuityLevel();
+        }
+
+        function showNextAcuityLevel() {
+            const acuityLevels = [
+                { size: 'text-6xl', text: 'E', options: ['E', 'F', 'P', 'T'] },
+                { size: 'text-5xl', text: 'FP', options: ['FP', 'TO', 'LP', 'ED'] },
+                { size: 'text-4xl', text: 'TOZ', options: ['TOZ', 'LPD', 'PEC', 'FDE'] },
+                { size: 'text-3xl', text: 'LPED', options: ['LPED', 'TOZC', 'FPTO', 'ZCLE'] },
+                { size: 'text-2xl', text: 'PEC FD', options: ['PECFD', 'LPEDT', 'FZBDE', 'OFLCT'] },
+                { size: 'text-xl', text: 'EDFCZP', options: ['EDFCZP', 'FELOPZD', 'DEFPOTEC', 'LEFODPCT'] },
+            ];
+            const currentLevel = acuityLevels[state.acuityTestLevel];
+            const content = `
+                <div class="text-center">
+                    <h2 class="text-2xl font-bold text-white mb-2">Visual Acuity Test</h2>
+                    <p class="text-gray-400 mb-4">Stand a few feet away from the screen. Cover one eye and read the letters below.</p>
+                    <div class="bg-white text-black rounded-md p-8 my-4">
+                        <p class="${currentLevel.size} font-bold tracking-widest">${currentLevel.text}</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        ${currentLevel.options.map(opt => `<button class="acuity-option bg-brand-dark p-3 rounded-md hover:bg-gray-800">${opt}</button>`).join('')}
+                    </div>
+                </div>
+            `;
+            openModal(content);
+        }
+
+        function handleAcuityAnswer(answer) {
+            state.acuityTestLevel++;
+            if (state.acuityTestLevel >= 6) {
+                closeModal();
+                showNotification("Acuity test complete! For an accurate assessment, please see an optometrist.");
+            } else {
+                showNextAcuityLevel();
+            }
+        }
+        
+        function startColorBlindnessTest() {
+            state.colorTestPlate = 0;
+            state.colorTestScore = 0;
+            showNextColorPlate();
+        }
+        
+        function showNextColorPlate() {
+            const plates = [
+                { image: 'https://placehold.co/300x300/e08b8b/c45151?text=12', correct: '12' },
+                { image: 'https://placehold.co/300x300/98d698/54a154?text=8', correct: '8' },
+                { image: 'https://placehold.co/300x300/8b8be0/5151c4?text=29', correct: '29' },
+                { image: 'https://placehold.co/300x300/d698d6/a154a1?text=5', correct: '5' },
+                { image: 'https://placehold.co/300x300/e0b88b/c48b51?text=74', correct: '74' },
+            ];
+            const currentPlate = plates[state.colorTestPlate];
+            const options = {
+                '12': ['12', '72', '17', '7'],
+                '8': ['3', '8', '6', '5'],
+                '29': ['70', '20', '29', '79'],
+                '5': ['2', '5', '6', '3'],
+                '74': ['21', '71', '74', '24'],
+            };
+            const content = `
+                <div class="text-center">
+                     <h2 class="text-2xl font-bold text-white mb-2">Color Vision Test</h2>
+                    <p class="text-gray-400 mb-4">What number do you see in the image below?</p>
+                    <img src="${currentPlate.image}" alt="Ishihara Plate" class="w-48 h-48 mx-auto rounded-full my-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        ${options[currentPlate.correct].map(opt => `<button class="color-test-option bg-brand-dark p-3 rounded-md hover:bg-gray-800" data-value="${opt}">${opt}</button>`).join('')}
+                    </div>
+                </div>
+            `;
+            openModal(content);
+        }
+
+        function handleColorTestAnswer(answer) {
+            const plates = [ { correct: '12' }, { correct: '8' }, { correct: '29' }, { correct: '5' }, { correct: '74' }];
+            if (answer === plates[state.colorTestPlate].correct) {
+                state.colorTestScore++;
+            }
+            state.colorTestPlate++;
+            if (state.colorTestPlate >= plates.length) {
+                closeModal();
+                showNotification(`Test complete! Your score: ${state.colorTestScore}/${plates.length}. This is not a medical diagnosis.`);
+            } else {
+                showNextColorPlate();
+            }
+        }
+
+        // =================================================================
+        // MAIN RENDER FUNCTION
+        // =================================================================
+        const appContainer = document.getElementById('app');
+
+        function render() {
+            let content = '';
+            if (!state.isLoggedIn) {
+                document.body.style.paddingTop = '0px';
+                content = LoginPageHTML();
+            } else {
+                document.body.style.paddingTop = '68px'; 
+                let pageContent = '';
+                switch(state.currentPage) {
+                    case 'dashboard': pageContent = DashboardPageHTML(); break;
+                    case 'scan': pageContent = ScanPageHTML(); break;
+                    case 'chatbot': pageContent = ChatbotPageHTML(); break;
+                    case 'doctors': pageContent = DoctorsPageHTML(); break;
+                    case 'learn': pageContent = LearnPageHTML(); break;
+                    case 'profile': pageContent = ProfilePageHTML(); break;
+                    case 'symptoms': pageContent = SymptomCheckerPageHTML(); break;
+                    default: pageContent = DashboardPageHTML();
+                }
+                content = `${NavigationHTML()}<main>${pageContent}</main>`;
+            }
+            appContainer.innerHTML = content;
+            
+            lucide.createIcons();
+            addEventListeners();
+        }
+
+        // Initial render to start the app
+        render();
+
+    </script>
+
+</body>
+</html>

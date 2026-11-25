@@ -1,0 +1,1385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EyeCare AI - Advanced Eye Disease Detection</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --secondary-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --success-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            --warning-gradient: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+            --dark-bg: #1a1a2e;
+            --card-bg: rgba(255, 255, 255, 0.95);
+            --text-dark: #2d3748;
+            --text-light: #718096;
+            --border-radius: 20px;
+            --shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            --shadow-hover: 0 30px 60px rgba(0, 0, 0, 0.15);
+        }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            background: var(--primary-gradient);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Animated Background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+            z-index: -1;
+            animation: float 20s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            33% { transform: translateY(-30px) rotate(1deg); }
+            66% { transform: translateY(-20px) rotate(-1deg); }
+        }
+
+        /* Navigation */
+        .navbar {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            z-index: 1000;
+            padding: 1rem 2rem;
+            transition: all 0.3s ease;
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+
+        .logo i {
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 2rem;
+        }
+
+        .nav-menu {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .nav-item {
+            cursor: pointer;
+            padding: 0.5rem 1rem;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            color: var(--text-dark);
+            font-weight: 500;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background: var(--primary-gradient);
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        /* Main Container */
+        .main-container {
+            margin-top: 80px;
+            padding: 2rem;
+            max-width: 1200px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Login/Signup Screen */
+        .auth-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: calc(100vh - 80px);
+        }
+
+        .auth-card {
+            background: var(--card-bg);
+            padding: 3rem;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            width: 100%;
+            max-width: 450px;
+            text-align: center;
+            backdrop-filter: blur(20px);
+            transform: translateY(0);
+            transition: all 0.3s ease;
+        }
+
+        .auth-card:hover {
+            transform: translateY(-10px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .auth-header {
+            margin-bottom: 2rem;
+        }
+
+        .auth-header h1 {
+            color: var(--text-dark);
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        .auth-tabs {
+            display: flex;
+            margin-bottom: 2rem;
+            background: #f7fafc;
+            border-radius: 15px;
+            padding: 5px;
+        }
+
+        .auth-tab {
+            flex: 1;
+            padding: 1rem;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        .auth-tab.active {
+            background: var(--primary-gradient);
+            color: white;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-dark);
+            font-weight: 600;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn {
+            background: var(--primary-gradient);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s ease;
+            margin-top: 1rem;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Dashboard */
+        .dashboard {
+            display: none;
+            animation: fadeIn 0.6s ease;
+        }
+
+        .dashboard.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .welcome-section {
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: var(--border-radius);
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow);
+            text-align: center;
+        }
+
+        .welcome-section h2 {
+            color: var(--text-dark);
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .feature-card {
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-10px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .feature-card:hover::before {
+            left: 100%;
+        }
+
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .feature-card h3 {
+            color: var(--text-dark);
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            font-weight: 700;
+        }
+
+        .feature-card p {
+            color: var(--text-light);
+            line-height: 1.6;
+        }
+
+        /* Screen Sections */
+        .screen-section {
+            display: none;
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            margin-bottom: 2rem;
+            animation: slideIn 0.5s ease;
+        }
+
+        .screen-section.active {
+            display: block;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-30px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .section-header i {
+            font-size: 2rem;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .section-header h2 {
+            color: var(--text-dark);
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .back-btn {
+            background: #e2e8f0;
+            color: var(--text-dark);
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-left: auto;
+        }
+
+        .back-btn:hover {
+            background: #cbd5e0;
+            transform: translateY(-2px);
+        }
+
+        /* Upload Section */
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 3rem;
+            text-align: center;
+            background: linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 2rem;
+        }
+
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            transform: translateY(-5px);
+        }
+
+        .upload-area i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            color: #667eea;
+        }
+
+        .upload-area:hover i {
+            color: white;
+        }
+
+        .upload-area h3 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            color: var(--text-dark);
+        }
+
+        .upload-area:hover h3,
+        .upload-area:hover p {
+            color: white;
+        }
+
+        /* AI Assistant */
+        .chat-container {
+            height: 400px;
+            border: 1px solid #e2e8f0;
+            border-radius: 15px;
+            overflow-y: auto;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            background: #f7fafc;
+        }
+
+        .chat-message {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            border-radius: 15px;
+            max-width: 80%;
+            animation: messageSlide 0.3s ease;
+        }
+
+        .chat-message.user {
+            background: var(--primary-gradient);
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .chat-message.ai {
+            background: white;
+            color: var(--text-dark);
+            border: 1px solid #e2e8f0;
+        }
+
+        @keyframes messageSlide {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .chat-input-area {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 1rem;
+        }
+
+        .send-btn {
+            background: var(--success-gradient);
+            color: white;
+            border: none;
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .send-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(79, 172, 254, 0.3);
+        }
+
+        /* Doctors Section */
+        .doctors-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .doctor-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 15px;
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+        }
+
+        .doctor-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .doctor-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: var(--primary-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 2rem;
+            margin: 0 auto 1rem;
+        }
+
+        .doctor-info h4 {
+            color: var(--text-dark);
+            font-size: 1.3rem;
+            margin-bottom: 0.5rem;
+            text-align: center;
+        }
+
+        .doctor-info p {
+            color: var(--text-light);
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .doctor-rating {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        .stars {
+            color: #ffd700;
+            margin-right: 0.5rem;
+        }
+
+        .contact-btn {
+            background: var(--warning-gradient);
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            width: 100%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .contact-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(67, 233, 123, 0.3);
+        }
+
+        /* Profile Section */
+        .profile-header {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .profile-avatar {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: var(--primary-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 3rem;
+        }
+
+        .profile-info h3 {
+            color: var(--text-dark);
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .profile-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: var(--text-light);
+            font-size: 0.9rem;
+        }
+
+        /* Results Display */
+        .result-container {
+            background: linear-gradient(135deg, #e8f5e8 0%, #f0fff0 100%);
+            padding: 2rem;
+            border-radius: 15px;
+            border-left: 5px solid #4CAF50;
+            margin-top: 2rem;
+        }
+
+        .result-container h3 {
+            color: #2d5a2d;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .result-container p {
+            color: #2d5a2d;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 2rem;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            position: relative;
+            animation: modalSlide 0.3s ease;
+        }
+
+        @keyframes modalSlide {
+            from { opacity: 0; transform: translateY(-50px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            position: absolute;
+            right: 1rem;
+            top: 1rem;
+        }
+
+        .close:hover {
+            color: #000;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .navbar {
+                padding: 1rem;
+            }
+
+            .nav-menu {
+                gap: 0.5rem;
+            }
+
+            .nav-item {
+                padding: 0.3rem 0.6rem;
+                font-size: 0.9rem;
+            }
+
+            .main-container {
+                padding: 1rem;
+            }
+
+            .auth-card {
+                padding: 2rem 1.5rem;
+            }
+
+            .feature-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            .profile-header {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .upload-area {
+                padding: 2rem 1rem;
+            }
+        }
+
+        /* Loading Animation */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Hide elements */
+        #imageInput {
+            display: none;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        /* Success/Error Messages */
+        .alert {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-weight: 500;
+        }
+
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert-info {
+            background-color: #cce7ff;
+            color: #004085;
+            border: 1px solid #b8daff;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">
+                <i class="fas fa-eye"></i>
+                <span>EyeCare AI</span>
+            </div>
+            <div class="nav-menu hidden" id="navMenu">
+                <div class="nav-item active" onclick="showDashboard()">
+                    <i class="fas fa-home"></i> Dashboard
+                </div>
+                <div class="nav-item" onclick="showSection('scan')">
+                    <i class="fas fa-camera"></i> Scan
+                </div>
+                <div class="nav-item" onclick="showSection('assistant')">
+                    <i class="fas fa-robot"></i> AI Assistant
+                </div>
+                <div class="nav-item" onclick="showSection('doctors')">
+                    <i class="fas fa-user-md"></i> Doctors
+                </div>
+                <div class="nav-item" onclick="showSection('profile')">
+                    <i class="fas fa-user"></i> Profile
+                </div>
+                <div class="nav-item" onclick="logout()" style="background: var(--secondary-gradient); color: white;">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Login/Signup Screen -->
+        <div class="auth-container" id="authScreen">
+            <div class="auth-card">
+                <div class="auth-header">
+                    <div style="font-size: 4rem; margin-bottom: 1rem;">
+                        <i class="fas fa-eye" style="background: var(--primary-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"></i>
+                    </div>
+                    <h1>Welcome to EyeCare AI</h1>
+                    <p style="color: var(--text-light); margin-bottom: 2rem;">Advanced AI-powered eye disease detection and healthcare management</p>
+                </div>
+
+                <div id="authAlert" class="hidden"></div>
+
+                <div class="auth-tabs">
+                    <div class="auth-tab active" id="loginTab" onclick="switchTab('login')">Login</div>
+                    <div class="auth-tab" id="signupTab" onclick="switchTab('signup')">Sign Up</div>
+                </div>
+
+                <!-- Login Form -->
+                <form id="loginForm" onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label for="loginEmail">
+                            <i class="fas fa-envelope"></i> Email Address
+                        </label>
+                        <input type="email" id="loginEmail" required placeholder="Enter your email">
+                    </div>
+                    <div class="form-group">
+                        <label for="loginPassword">
+                            <i class="fas fa-lock"></i> Password
+                        </label>
+                        <input type="password" id="loginPassword" required placeholder="Enter your password">
+                    </div>
+                    <button type="submit" class="btn" id="loginBtn">
+                        <i class="fas fa-sign-in-alt"></i> Sign In
+                    </button>
+                </form>
+
+                <!-- Signup Form -->
+                <form id="signupForm" style="display: none;" onsubmit="handleSignup(event)">
+                    <div class="form-group">
+                        <label for="signupName">
+                            <i class="fas fa-user"></i> Full Name
+                        </label>
+                        <input type="text" id="signupName" required placeholder="Enter your full name">
+                    </div>
+                    <div class="form-group">
+                        <label for="signupEmail">
+                            <i class="fas fa-envelope"></i> Email Address
+                        </label>
+                        <input type="email" id="signupEmail" required placeholder="Enter your email">
+                    </div>
+                    <div class="form-group">
+                        <label for="signupPassword">
+                            <i class="fas fa-lock"></i> Password
+                        </label>
+                        <input type="password" id="signupPassword" required placeholder="Create a password" minlength="6">
+                    </div>
+                    <div class="form-group">
+                        <label for="confirmPassword">
+                            <i class="fas fa-lock"></i> Confirm Password
+                        </label>
+                        <input type="password" id="confirmPassword" required placeholder="Confirm your password">
+                    </div>
+                    <button type="submit" class="btn" id="signupBtn">
+                        <i class="fas fa-user-plus"></i> Create Account
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Dashboard -->
+        <div class="dashboard" id="dashboard">
+            <div class="welcome-section">
+                <h2>Welcome back, <span id="userName">User</span>!</h2>
+                <p style="color: var(--text-light);">Your comprehensive eye health management system</p>
+            </div>
+
+            <div class="feature-grid">
+                <div class="feature-card" onclick="showSection('scan')">
+                    <div class="feature-icon">
+                        <i class="fas fa-camera"></i>
+                    </div>
+                    <h3>Eye Scan & Analysis</h3>
+                    <p>Upload eye images for instant AI-powered disease detection and analysis</p>
+                </div>
+
+                <div class="feature-card" onclick="showSection('assistant')">
+                    <div class="feature-icon">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <h3>AI Health Assistant</h3>
+                    <p>Get instant answers to your eye health questions from our intelligent assistant</p>
+                </div>
+
+                <div class="feature-card" onclick="showSection('doctors')">
+                    <div class="feature-icon">
+                        <i class="fas fa-user-md"></i>
+                    </div>
+                    <h3>Find Doctors</h3>
+                    <p>Locate nearby eye specialists and ophthalmologists in your area</p>
+                </div>
+
+                <div class="feature-card" onclick="showSection('profile')">
+                    <div class="feature-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <h3>Health Dashboard</h3>
+                    <p>Track your eye health progress and manage your medical history</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scan Section -->
+        <div class="screen-section" id="scanSection">
+            <div class="section-header">
+                <i class="fas fa-camera"></i>
+                <h2>Eye Scan & Analysis</h2>
+                <button class="back-btn" onclick="showDashboard()">
+                    <i class="fas fa-arrow-left"></i> Back
+                </button>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 2rem;">
+                <label for="patientName">
+                    <i class="fas fa-user"></i> Patient Name
+                </label>
+                <input type="text" id="patientName" required placeholder="Enter patient's full name">
+            </div>
+
+            <div class="upload-area" onclick="document.getElementById('imageInput').click()" id="uploadArea">
+                <i class="fas fa-cloud-upload-alt"></i>
+                <h3>Upload Eye Image</h3>
+                <p>Click here or drag and drop your eye image for analysis</p>
+                <p style="font-size: 0.9rem; margin-top: 1rem;">Supports JPG, PNG, JPEG formats</p>
+            </div>
+
+            <input type="file" id="imageInput" accept="image/*" onchange="handleImageUpload(event)">
+
+            <div id="imagePreview" style="display: none; text-align: center; margin: 2rem 0;">
+                <img id="previewImg" style="max-width: 100%; max-height: 300px; border-radius: 15px; box-shadow: var(--shadow);">
+                <div style="margin-top: 1rem;">
+                    <button class="btn" onclick="analyzeImage()" id="analyzeBtn">
+                        <i class="fas fa-search"></i> Analyze Image
+                    </button>
+            </div>
+
+            <div id="scanResults" class="hidden"></div>
+        </div>
+
+                <div class="screen-section" id="assistantSection">
+            <div class="section-header">
+                <i class="fas fa-robot"></i>
+                <h2>AI Health Assistant</h2>
+                <button class="back-btn" onclick="showDashboard()">
+                    <i class="fas fa-arrow-left"></i> Back
+                </button>
+            </div>
+            <div class="chat-container" id="chatContainer">
+                                <div class="chat-message ai">Hello! I am EyeCare AI. I can answer questions about general eye health. How can I help you today?</div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="chatInput" class="chat-input" placeholder="Ask me a question about eye health...">
+                <button class="send-btn" onclick="sendMessage()">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+
+                <div class="screen-section" id="doctorsSection">
+            <div class="section-header">
+                <i class="fas fa-user-md"></i>
+                <h2>Find Top Doctors</h2>
+                <button class="back-btn" onclick="showDashboard()">
+                    <i class="fas fa-arrow-left"></i> Back
+                </button>
+            </div>
+            <div class="doctors-grid" id="doctorsGrid">
+                            </div>
+        </div>
+
+                <div class="screen-section" id="profileSection">
+            <div class="section-header">
+                <i class="fas fa-user"></i>
+                <h2>My Profile</h2>
+                <button class="back-btn" onclick="showDashboard()">
+                    <i class="fas fa-arrow-left"></i> Back
+                </button>
+            </div>
+            <div class="profile-header">
+                <div class="profile-avatar" id="profileAvatar">U</div>
+                <div class="profile-info">
+                    <h3 id="profileName">User Name</h3>
+                    <p id="profileEmail" style="color: var(--text-light);"></p>
+                </div>
+            </div>
+            <div class="profile-stats">
+                <div class="stat-card">
+                    <div class="stat-number" id="scansCount">0</div>
+                    <div class="stat-label">Total Scans</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="historyCount">0</div>
+                    <div class="stat-label">Past Reports</div>
+                </div>
+            </div>
+
+            <div id="historyList">
+                            </div>
+        </div>
+
+    </div>
+
+        <div id="scanModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3>Scan Result for <span id="modalPatientName"></span></h3>
+            <img id="modalImg" style="max-width: 100%; border-radius: 10px; margin: 1rem 0;">
+            <div id="modalResultText"></div>
+            <p style="font-size: 0.9rem; color: #f5576c; margin-top: 1rem;">
+                **Disclaimer:** This analysis is for informational purposes only and should not be considered medical advice. Consult a healthcare professional for a diagnosis.
+            </p>
+        </div>
+    </div>
+
+
+    <script>
+        // Dummy data for demonstration
+        let currentUser = null;
+        const users = {};
+        const doctors = [
+            { name: 'Dr. Emily Carter', specialization: 'Ophthalmologist', rating: 4.9, location: 'New York, NY' },
+            { name: 'Dr. Michael Chen', specialization: 'Retina Specialist', rating: 4.7, location: 'San Francisco, CA' },
+            { name: 'Dr. Sarah Rodriguez', specialization: 'Pediatric Ophthalmologist', rating: 5.0, location: 'Austin, TX' },
+            { name: 'Dr. David Lee', specialization: 'Glaucoma Specialist', rating: 4.8, location: 'Boston, MA' }
+        ];
+        const diseaseOutcomes = {
+            'Normal': {
+                title: 'Normal Scan Results',
+                message: 'Your scan appears normal. Keep up with regular eye check-ups for continued health.',
+                color: '#4CAF50',
+                gradient: 'linear-gradient(135deg, #e8f5e8 0%, #f0fff0 100%)',
+                textColor: '#2d5a2d'
+            },
+            'Cataract': {
+                title: 'Cataract Detected',
+                message: 'The AI analysis suggests a potential cataract. Please consult an ophthalmologist for a comprehensive examination.',
+                color: '#FFC107',
+                gradient: 'linear-gradient(135deg, #fff8e1 0%, #fffbe6 100%)',
+                textColor: '#8a6d3b'
+            },
+            'Glaucoma': {
+                title: 'Glaucoma Detected',
+                message: 'The AI analysis suggests a potential case of glaucoma. Immediate consultation with an eye care specialist is highly recommended.',
+                color: '#F44336',
+                gradient: 'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)',
+                textColor: '#b71c1c'
+            },
+            'Diabetic Retinopathy': {
+                title: 'Diabetic Retinopathy Detected',
+                message: 'The AI analysis suggests a potential case of diabetic retinopathy. Please see a retina specialist as soon as possible.',
+                color: '#2196F3',
+                gradient: 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)',
+                textColor: '#0d47a1'
+            }
+        };
+        const possibleDiseases = Object.keys(diseaseOutcomes);
+
+        // DOM elements
+        const authScreen = document.getElementById('authScreen');
+        const dashboardScreen = document.getElementById('dashboard');
+        const navMenu = document.getElementById('navMenu');
+        const loginForm = document.getElementById('loginForm');
+        const signupForm = document.getElementById('signupForm');
+        const authAlert = document.getElementById('authAlert');
+        const loginBtn = document.getElementById('loginBtn');
+        const signupBtn = document.getElementById('signupBtn');
+        const userNameSpan = document.getElementById('userName');
+
+        // Utility functions
+        function showSection(sectionId) {
+            document.querySelectorAll('.screen-section, .dashboard').forEach(section => {
+                section.classList.remove('active');
+            });
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            if (sectionId === 'dashboard') {
+                document.getElementById(sectionId).classList.add('active');
+                document.querySelector('.nav-item.active').classList.remove('active');
+                document.querySelector('.nav-item').classList.add('active');
+            } else {
+                document.getElementById(sectionId + 'Section').classList.add('active');
+                document.querySelector(`.nav-item[onclick="showSection('${sectionId}')"]`).classList.add('active');
+            }
+        }
+
+        function showDashboard() {
+            showSection('dashboard');
+        }
+
+        function showAlert(message, type = 'info') {
+            authAlert.textContent = message;
+            authAlert.className = `alert alert-${type}`;
+            authAlert.classList.remove('hidden');
+        }
+
+        function clearAlert() {
+            authAlert.classList.add('hidden');
+        }
+
+        function loginSuccess(user) {
+            currentUser = user;
+            authScreen.style.display = 'none';
+            navMenu.classList.remove('hidden');
+            document.querySelector('body').style.minHeight = 'auto'; // Reset min-height for content flow
+            userNameSpan.textContent = user.name;
+            updateProfileSection();
+            updateDoctorsSection();
+            showDashboard();
+        }
+
+        function logout() {
+            currentUser = null;
+            authScreen.style.display = 'flex';
+            navMenu.classList.add('hidden');
+            document.querySelector('body').style.minHeight = '100vh';
+            showSection('authScreen');
+            clearAlert();
+        }
+
+        // Tab switching for Login/Signup
+        function switchTab(tab) {
+            document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(`${tab}Tab`).classList.add('active');
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('signupForm').style.display = 'none';
+            document.getElementById(`${tab}Form`).style.display = 'block';
+            clearAlert();
+        }
+
+        // Auth Handlers
+        function handleLogin(event) {
+            event.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+
+            if (users[email] && users[email].password === password) {
+                loginSuccess(users[email]);
+            } else {
+                showAlert('Invalid email or password.', 'error');
+            }
+        }
+
+        function handleSignup(event) {
+            event.preventDefault();
+            const name = document.getElementById('signupName').value;
+            const email = document.getElementById('signupEmail').value;
+            const password = document.getElementById('signupPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+
+            if (password !== confirmPassword) {
+                showAlert('Passwords do not match.', 'error');
+                return;
+            }
+
+            if (users[email]) {
+                showAlert('An account with this email already exists.', 'error');
+                return;
+            }
+
+            const newUser = {
+                name: name,
+                email: email,
+                password: password,
+                scans: []
+            };
+            users[email] = newUser;
+            showAlert('Account created successfully! You can now log in.', 'success');
+            switchTab('login');
+            document.getElementById('loginEmail').value = email;
+        }
+
+        // Scan Section Logic
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const previewImg = document.getElementById('previewImg');
+                    previewImg.src = e.target.result;
+                    document.getElementById('uploadArea').style.display = 'none';
+                    document.getElementById('imagePreview').style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function analyzeImage() {
+            const patientName = document.getElementById('patientName').value;
+            const analyzeBtn = document.getElementById('analyzeBtn');
+
+            if (!patientName) {
+                alert('Please enter the patient\'s name.');
+                return;
+            }
+            
+            // Simulate loading state
+            analyzeBtn.innerHTML = '<span class="loading"></span> Analyzing...';
+            analyzeBtn.disabled = true;
+
+            setTimeout(() => {
+                const randomOutcome = possibleDiseases[Math.floor(Math.random() * possibleDiseases.length)];
+                const result = diseaseOutcomes[randomOutcome];
+                
+                const scanData = {
+                    date: new Date().toLocaleDateString(),
+                    patient: patientName,
+                    result: randomOutcome,
+                    imageSrc: document.getElementById('previewImg').src
+                };
+                currentUser.scans.push(scanData);
+
+                // Display result on page
+                const scanResultsDiv = document.getElementById('scanResults');
+                scanResultsDiv.innerHTML = `
+                    <div class="result-container" style="background: ${result.gradient}; border-left-color: ${result.color}; color: ${result.textColor};">
+                        <h3>${result.title}</h3>
+                        <p>${result.message}</p>
+                    </div>
+                `;
+                scanResultsDiv.classList.remove('hidden');
+
+                // Reset button
+                analyzeBtn.innerHTML = '<i class="fas fa-search"></i> Analyze Image';
+                analyzeBtn.disabled = false;
+                
+                // Update profile stats after a scan
+                updateProfileSection();
+            }, 2000);
+        }
+
+        // AI Assistant Logic
+        function sendMessage() {
+            const chatInput = document.getElementById('chatInput');
+            const chatContainer = document.getElementById('chatContainer');
+            const userMessage = chatInput.value.trim();
+
+            if (userMessage === '') return;
+
+            // Add user message
+            const userMsgDiv = document.createElement('div');
+            userMsgDiv.classList.add('chat-message', 'user');
+            userMsgDiv.textContent = userMessage;
+            chatContainer.appendChild(userMsgDiv);
+            chatInput.value = '';
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            // Simulate AI response
+            setTimeout(() => {
+                const aiResponse = getAIResponse(userMessage);
+                const aiMsgDiv = document.createElement('div');
+                aiMsgDiv.classList.add('chat-message', 'ai');
+                aiMsgDiv.textContent = aiResponse;
+                chatContainer.appendChild(aiMsgDiv);
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }, 1500);
+        }
+
+        function getAIResponse(query) {
+            query = query.toLowerCase();
+            if (query.includes('cataract')) {
+                return 'A cataract is a clouding of the eye\'s natural lens. It develops slowly and can be surgically corrected.';
+            } else if (query.includes('glaucoma')) {
+                return 'Glaucoma is a group of eye conditions that damage the optic nerve. Regular eye exams are crucial for early detection.';
+            } else if (query.includes('diabetic retinopathy')) {
+                return 'Diabetic retinopathy is a complication of diabetes that affects the blood vessels in the retina. It is the leading cause of blindness in working-age adults.';
+            } else if (query.includes('dry eye')) {
+                return 'Dry eye syndrome occurs when your eyes don\'t produce enough quality tears. It can cause discomfort, redness, and blurred vision.';
+            } else if (query.includes('healthy eyes')) {
+                return 'To maintain healthy eyes, eat a balanced diet rich in vitamins C and E, zinc, and omega-3s. Take breaks from screens using the 20-20-20 rule, and always wear sunglasses outdoors.';
+            } else {
+                return 'I can provide general information on eye health. For a medical diagnosis, please consult a qualified healthcare professional.';
+            }
+        }
+        
+        // Doctors Section Logic
+        function updateDoctorsSection() {
+            const doctorsGrid = document.getElementById('doctorsGrid');
+            doctorsGrid.innerHTML = '';
+            doctors.forEach(doctor => {
+                const card = document.createElement('div');
+                card.classList.add('doctor-card');
+                const initials = doctor.name.split(' ').map(n => n[0]).join('');
+                const ratingStars = '★'.repeat(Math.floor(doctor.rating)) + '☆'.repeat(5 - Math.floor(doctor.rating));
+                card.innerHTML = `
+                    <div class="doctor-avatar">${initials}</div>
+                    <div class="doctor-info">
+                        <h4>${doctor.name}</h4>
+                        <p>${doctor.specialization}</p>
+                        <div class="doctor-rating">
+                            <span class="stars">${ratingStars}</span>(${doctor.rating})
+                        </div>
+                        <p style="font-size: 0.9rem; color: var(--text-dark);"><i class="fas fa-map-marker-alt"></i> ${doctor.location}</p>
+                    </div>
+                    <button class="contact-btn">
+                        <i class="fas fa-phone-alt"></i> Contact
+                    </button>
+                `;
+                doctorsGrid.appendChild(card);
+            });
+        }
+        
+        // Profile Section Logic
+        function updateProfileSection() {
+            if (!currentUser) return;
+            
+            document.getElementById('profileName').textContent = currentUser.name;
+            document.getElementById('profileEmail').textContent = currentUser.email;
+            document.getElementById('profileAvatar').textContent = currentUser.name.charAt(0).toUpperCase();
+            document.getElementById('scansCount').textContent = currentUser.scans.length;
+            document.getElementById('historyCount').textContent = currentUser.scans.length;
+
+            const historyList = document.getElementById('historyList');
+            historyList.innerHTML = '';
+
+            if (currentUser.scans.length === 0) {
+                historyList.innerHTML = '<p style="text-align: center; color: var(--text-light);">No scan history found.</p>';
+                return;
+            }
+
+            currentUser.scans.forEach((scan, index) => {
+                const scanItem = document.createElement('div');
+                scanItem.classList.add('result-container');
+                scanItem.style.cursor = 'pointer';
+                scanItem.onclick = () => openModal(scan);
+                const outcome = diseaseOutcomes[scan.result];
+                scanItem.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>Scan Report - ${scan.patient}</h3>
+                        <span style="font-size: 0.9rem; color: var(--text-light);">${scan.date}</span>
+                    </div>
+                    <p style="margin-top: 1rem; color: ${outcome.textColor};">
+                        <i class="fas fa-check-circle" style="color: ${outcome.color}; margin-right: 0.5rem;"></i>
+                        <strong>Result:</strong> ${scan.result}
+                    </p>
+                `;
+                historyList.appendChild(scanItem);
+            });
+        }
+
+        // Modal Logic
+        const modal = document.getElementById('scanModal');
+        function openModal(scan) {
+            const outcome = diseaseOutcomes[scan.result];
+            document.getElementById('modalPatientName').textContent = scan.patient;
+            document.getElementById('modalImg').src = scan.imageSrc;
+            document.getElementById('modalResultText').innerHTML = `
+                <p style="font-size: 1.2rem; font-weight: 600; color: ${outcome.textColor}; margin-bottom: 0.5rem;">
+                    <i class="fas fa-microscope"></i> AI Analysis Result: ${scan.result}
+                </p>
+                <p style="color: ${outcome.textColor};">${outcome.message}</p>
+                <p style="font-size: 0.9rem; color: var(--text-light); margin-top: 1rem;">
+                    Scan Date: ${scan.date}
+                </p>
+            `;
+            modal.style.display = 'block';
+        }
+
+        function closeModal() {
+            modal.style.display = 'none';
+        }
+
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+        
+        // Initial state
+        window.onload = () => {
+            showSection('authScreen');
+        };
+
+    </script>
+</body>
+</html>
